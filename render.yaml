@@ -1,0 +1,10 @@
+# Configurazione per Render (https://render.com): un solo servizio web gratuito
+# che serve il gioco e gestisce le partite online.
+services:
+  - type: web
+    name: ape-race
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health

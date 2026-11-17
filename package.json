@@ -1,0 +1,16 @@
+{
+  "name": "ape-race",
+  "version": "2.0.0-alpha.1",
+  "description": "Ape Race – corsa di Ape Cross nei borghi toscani, gioco web 3D con multiplayer online",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "PORT=8080 node server/server.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
