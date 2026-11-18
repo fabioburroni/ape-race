@@ -148,6 +148,7 @@ button{font-family:Nunito,sans-serif;cursor:pointer}
     <button id="opengarage" class="gar">🔧 Garage: personalizza la tua Ape</button>
     <div class="two"><div><label class="lbl" for="diff" style="margin-top:4px">Difficoltà</label><select id="diff"><option value="0">Facile</option><option value="1">Normale</option><option value="2">Difficile</option></select></div>
       <div style="flex:.8"><span class="lbl" style="margin-top:4px">Fantasma</span><label class="ochk" style="margin-top:12px"><input type="checkbox" id="ghostchk" checked> Mostra il mio record</label></div></div>
+    <label class="ochk" style="margin-top:2px"><input type="checkbox" id="litechk"> Grafica leggera (più fluida sui telefoni)</label>
     <label class="lbl" for="town">Scegli il paese</label>
     <select id="town"></select>
     <div class="info" id="mapinfo"></div>
@@ -551,7 +552,10 @@ function routeAt(s){const pts=route.pts;s=clamp(s,0,route.total);const f=s/2,i=M
 /* ========== 3D ========== */
 const cv=$('#c'),oc=$('#o'),octx=oc.getContext('2d');
 const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
-renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+// grafica leggera: niente ombre e risoluzione 1x (attiva di default sui telefoni)
+let LITE=(()=>{try{const v=localStorage.getItem('aperace:lite');if(v!=null)return v==='1'}catch(e){}return ('ontouchstart' in window)||navigator.maxTouchPoints>0})();
+renderer.shadowMap.enabled=!LITE;let fpsAvg=60;
+renderer.shadowMap.enabled=!LITE;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 const SKY=0xbfdff0;
 const scene=new THREE.Scene();scene.background=new THREE.Color(SKY);scene.fog=new THREE.Fog(SKY,220,1500);
 const camera=new THREE.PerspectiveCamera(62,1,.3,3000);
@@ -560,7 +564,7 @@ const sun=new THREE.DirectionalLight(0xfff0d6,.5);sun.castShadow=true;sun.shadow
 Object.assign(sun.shadow.camera,{left:-70,right:70,top:70,bottom:-70,near:1,far:400});sun.shadow.bias=-.0006;scene.add(sun);scene.add(sun.target);
 const SUNOFF=new THREE.Vector3(60,110,40);
 let W=0,H=0,DPR=1;
-function resize(){DPR=Math.min(window.devicePixelRatio||1,1.75);W=innerWidth;H=innerHeight;renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);cv.style.width=W+'px';cv.style.height=H+'px';
+function resize(){DPR=Math.min(window.devicePixelRatio||1,LITE?1:1.75);W=innerWidth;H=innerHeight;renderer.setPixelRatio(DPR);renderer.setSize(W,H,false);cv.style.width=W+'px';cv.style.height=H+'px';
   oc.width=Math.round(W*DPR);oc.height=Math.round(H*DPR);oc.style.width=W+'px';oc.style.height=H+'px';camera.aspect=W/H;camera.updateProjectionMatrix();gCam.aspect=W/H;gCam.updateProjectionMatrix();buildMinimap()}
 addEventListener('resize',()=>resize());
 
@@ -1175,7 +1179,8 @@ function aiAvoid(r,tv){for(const o of obst){if(o.kind!=='tractor'&&o.kind!=='sta
 const DIFF=[{n:'Facile',skill:[.76,.08],vmax:[13.2,1.2],push:0},{n:'Normale',skill:[.86,.1],vmax:[14.6,1.6],push:.12},{n:'Difficile',skill:[.95,.05],vmax:[16.2,1],push:.35}];
 let diff=1,showGhost=true;
 try{diff=+(localStorage.getItem('aperace:diff')??1);if(!(diff>=0&&diff<=2))diff=1;showGhost=localStorage.getItem('aperace:ghost')!=='0'}catch(e){}
-$('#diff').value=diff;$('#ghostchk').checked=showGhost;
+$('#diff').value=diff;$('#ghostchk').checked=showGhost;$('#litechk').checked=LITE;
+$('#litechk').onchange=e=>{LITE=e.target.checked;try{localStorage.setItem('aperace:lite',LITE?'1':'0')}catch(_){}renderer.shadowMap.enabled=!LITE;scene.traverse(o=>{if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true)});resize()};
 $('#diff').onchange=e=>{diff=+e.target.value;try{localStorage.setItem('aperace:diff',diff)}catch(_){}};
 $('#ghostchk').onchange=e=>{showGhost=e.target.checked;try{localStorage.setItem('aperace:ghost',showGhost?'1':'0')}catch(_){}};
 const recKey=()=>'aperace:rec:'+world.name+'|'+route.name;
@@ -1263,7 +1268,7 @@ function startOrbit(){initAudio();for(const r of racers)if(r.mesh)disposeGroup(r
   const sg=document.createElement('optgroup');sg.label='Vie';og.appendChild(sg);for(const l of world.labels.slice().sort((a,b)=>a.n.localeCompare(b.n))){const o=document.createElement('option');o.value=l.x+','+l.y;o.textContent=l.n;sg.appendChild(o)}
   let cx=0,cy=0;for(const b of world.bl){cx+=b[0][0];cy+=b[0][1]}if(world.bl.length){cx/=world.bl.length;cy/=world.bl.length}
   orb.tx=cx;orb.tz=cy;orb.dist=420;orb.pitch=.9;orb.fly={tx:cx,tz:cy,dist:280,pitch:.75};state='orbit'}
-function stopOrbit(){scene.fog.near=220;scene.fog.far=1500;$('#orbitui').classList.add('hidden');$('#otip').classList.add('hidden');sun.shadow.camera.left=-70;sun.shadow.camera.right=70;sun.shadow.camera.top=70;sun.shadow.camera.bottom=-70;sun.shadow.camera.updateProjectionMatrix();renderer.shadowMap.enabled=true}
+function stopOrbit(){scene.fog.near=220;scene.fog.far=1500;$('#orbitui').classList.add('hidden');$('#otip').classList.add('hidden');sun.shadow.camera.left=-70;sun.shadow.camera.right=70;sun.shadow.camera.top=70;sun.shadow.camera.bottom=-70;sun.shadow.camera.updateProjectionMatrix();renderer.shadowMap.enabled=!LITE}
 function updateOrbit(dt){
   if(orb.fly){const f=orb.fly,k=Math.min(1,dt*3);orb.tx+=(f.tx-orb.tx)*k;orb.tz+=(f.tz-orb.tz)*k;if(f.dist)orb.dist+=(f.dist-orb.dist)*k;if(f.pitch!=null)orb.pitch+=(f.pitch-orb.pitch)*k;if(Math.hypot(f.tx-orb.tx,f.tz-orb.tz)<.5&&(!f.dist||Math.abs(f.dist-orb.dist)<1))orb.fly=null}
   const fx=-Math.cos(orb.yaw),fz=-Math.sin(orb.yaw),rx=-fz,rz=fx,sp=orb.dist*.9*dt;
@@ -1383,9 +1388,9 @@ function updateCamera(dt){
 function moveSun(x,z){const h=groundH(x,z);sun.position.set(x+SUNOFF.x,h+SUNOFF.y,z+SUNOFF.z);sun.target.position.set(x,h,z)}
 
 /* ---------- Loop ---------- */
-let last=performance.now();
+let last=performance.now(),last0=performance.now();
 function loop(now){
-  const dt=Math.min(.05,(now-last)/1000);last=now;
+  const dt=Math.min(.05,(now-last)/1000);last=now;if(now-last0>0){fpsAvg=fpsAvg*.95+Math.min(120,1000/Math.max(1,now-last0))*.05}last0=now;
   if(state==='orbit'){updateOrbit(dt);renderer.render(scene,camera);drawOverlay();requestAnimationFrame(loop);return}
   if(state==='garage'){if(!gDrag)gRot+=dt*.35;gApe.root.rotation.y=gRot;
     const r=W<720?13:11;gCam.position.set(Math.cos(.5)*r,3.8,Math.sin(.5)*r);gCam.lookAt(0,W<720?-.6:1,0);if(W>=720)gCam.setViewOffset(W,H,190,0,W,H);else gCam.setViewOffset(W,H,0,H*.22,W,H);

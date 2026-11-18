@@ -3,7 +3,7 @@
 'use strict';
 (function () {
   const $ = s => document.querySelector(s);
-  const SEND_HZ = 12, INTERP_MS = 130;
+  const SEND_HZ = 15, INTERP_MS = 90, EXTRAP_MAX = .3;
   const NET = window.NET = {
     ws: null, you: null, code: null, host: null, players: [], setup: null, phase: 'lobby',
     offset: 0, rtt: 0, remotes: new Map(), sendT: 0, finished: false, results: null, ready: false
@@ -148,6 +148,7 @@
     setupRace(false); window.NET_RNG = null;
     NET.startAt = m.startAt; countT = Math.max(.5, (m.startAt - NET.now()) / 1000);
     badge.textContent = 'Online · ' + NET.code; badge.classList.remove('hidden'); emo.classList.remove('hidden');
+    clearInterval(NET.badgeT); NET.badgeT = setInterval(() => { if (!NET_ON) return clearInterval(NET.badgeT); badge.textContent = 'Online · ' + NET.code + ' · rete ' + Math.round(NET.rtt) + ' ms · ' + Math.round(fpsAvg) + ' fps' + (LITE ? '' : ' · grafica piena') }, 1000);
   }
   NET.onSetup = () => { // chiamata da setupRace: aggiunge le Ape degli altri giocatori sulla griglia
     for (const id of [...NET.remotes.keys()]) removeRemote(id);
@@ -186,8 +187,13 @@
       const S = r.snaps; if (!S.length) continue;
       let i = S.length - 1; while (i > 0 && S[i - 1].ts > rt) i--;
       const b = S[i], a = S[Math.max(0, i - 1)];
-      let u = b.ts === a.ts ? 1 : (rt - a.ts) / (b.ts - a.ts); u = Math.max(0, Math.min(1.3, u));
-      r.x = a.x + (b.x - a.x) * u; r.y = a.y + (b.y - a.y) * u; r.a = a.a + angDiff(a.a, b.a) * u;
+      let tx, ty, ta;
+      if (rt > b.ts) { // dati in ritardo: prevedo la posizione con velocità e direzione (al massimo 0,3 s)
+        const e = Math.min(EXTRAP_MAX, (rt - b.ts) / 1000); tx = b.x + Math.cos(b.a) * b.v * e; ty = b.y + Math.sin(b.a) * b.v * e; ta = b.a;
+      } else { let u = b.ts === a.ts ? 1 : (rt - a.ts) / (b.ts - a.ts); u = Math.max(0, Math.min(1, u)); tx = a.x + (b.x - a.x) * u; ty = a.y + (b.y - a.y) * u; ta = a.a + angDiff(a.a, b.a) * u }
+      // correzione morbida: niente salti quando arriva un dato nuovo
+      if (!r.seen || Math.hypot(tx - r.x, ty - r.y) > 15) { r.x = tx; r.y = ty; r.a = ta; r.seen = true }
+      else { const k = Math.min(1, dt * 14); r.x += (tx - r.x) * k; r.y += (ty - r.y) * k; r.a += angDiff(r.a, ta) * k }
       r.v = b.v; r.tilt = b.tilt; r.cp = Math.max(r.cp, b.cp); r.boosting = b.b;
       if (b.r) { if (!(r.rolled > 0)) r.rollDir = Math.sign(b.r); r.rolled = Math.abs(b.r) } else r.rolled = 0;
       const lost = b.lost | 0; if (r.mesh && r.mesh.loadItems) { const vis = r.mesh.loadItems.filter(g => g.visible).length, want = Math.max(0, r.cargoN - lost); if (vis > want && lost > (r.lost || 0)) { dropItem(r, vis - want) } } r.lost = Math.max(r.lost || 0, lost);

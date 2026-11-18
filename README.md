@@ -2,6 +2,7 @@
 
 Gioco web 3D: corse di Ape Cross per le strade vere dei borghi toscani (Asciano e dintorni), con **multiplayer online** tra amici.
 
+- **Gioco online (Render): https://ape-race.onrender.com/**
 - Versione su claude.ai (solo giocatore singolo): https://claude.ai/artifact/XSWgTjNQcidHe3Uwi2QaWL
 - Questa repository: la versione con server di gioco, per giocare online con chiunque apra il link (senza account).
 
@@ -50,11 +51,16 @@ Online non ci sono avversari del computer: solo giocatori veri (fino a 8 per par
 - Partenza e cronometro si basano sull'orologio del server, così i tempi sono confrontabili anche tra PC veloci e telefoni lenti.
 - Gli ostacoli (trattori, buche, bancarelle, galline, gatti) usano lo stesso "seme" casuale per tutti: sono negli stessi punti.
 - Le spinte tra giocatori: chi spinge invia l'evento, chi la subisce la applica alla propria Ape.
+- Se un aggiornamento arriva in ritardo, la posizione dell'altra Ape viene prevista (fino a 0,3 s) da velocità e direzione, e corretta in modo morbido quando arrivano i dati veri.
+- In gara, in alto, si vedono il ritardo di rete (ms) e i fotogrammi al secondo (fps): utili per capire se il lag è della rete o del dispositivo.
+
+## Grafica leggera
+
+Sui telefoni è attiva di default (niente ombre, risoluzione 1x): il gioco resta molto più fluido. Si cambia dal menù con la casella "Grafica leggera".
 
 ## Stato e prossimi passi
 
-Versione **2.0.0-alpha.1** (primo prototipo online). Da fare:
-- prova reale con 2–4 dispositivi (PC e telefoni) su Render
+Versione **2.0.0-alpha.2**. Provata il 18 nov 2026 con 2 telefoni e un PC su Render: funziona, con un po' di lag (da qui previsione del movimento e grafica leggera). Da fare:
 - gestione migliore di chi entra a gara iniziata (oggi aspetta in lobby la gara successiva)
 - carico caduto visibile anche agli altri giocatori nello stesso punto
 - Rapolano Terme e "Campionato dei borghi"
