@@ -20,10 +20,50 @@ const MIME = {
   '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon'
 };
 
+// ---------- statistiche anonime (dall'ultimo avvio del server) ----------
+// Nessun dato personale: ogni dispositivo manda solo un codice casuale generato dal browser.
+// Ogni evento viene anche scritto nel registro (Logs di Render), che conserva i totali oltre i riavvii.
+const STATS_KEY = process.env.STATS_KEY || '';
+const stats = { since: Date.now(), views: 0, devices: new Set(), days: new Map(), newDevices: 0,
+  rooms: 0, joins: 0, onlineRaces: 0, onlineFinishes: 0, soloRaces: 0, freeRides: 0, peak: 0 };
+const today = () => new Date().toISOString().slice(0, 10);
+function logEv(tag, msg) { console.log(new Date().toISOString() + ' [' + tag + '] ' + msg); }
+function readBody(req, cb) { let b = ''; req.on('data', c => { b += c; if (b.length > 2000) req.destroy(); }); req.on('end', () => { let j = {}; try { j = JSON.parse(b || '{}'); } catch (e) { } cb(j); }); }
+function devId(v) { return /^[a-z0-9]{6,24}$/.test(String(v || '')) ? String(v) : null; }
+function statsPage(res) {
+  const days = [...stats.days.entries()].sort((a, b) => b[0].localeCompare(a[0])).slice(0, 14);
+  const live = [...rooms.values()].map(r => `<li>Partita <b>${r.code}</b> (${r.phase === 'race' ? 'in gara' : 'in attesa'}): ${[...r.players.values()].map(p => p.cfg.name.replace(/[<>&]/g, '')).join(', ')}</li>`).join('');
+  const up = Math.round((Date.now() - stats.since) / 60000);
+  const row = (k, v) => `<tr><td>${k}</td><td><b>${v}</b></td></tr>`;
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+  res.end(`<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ape Race – statistiche</title>
+<style>body{font:16px system-ui,sans-serif;max-width:640px;margin:24px auto;padding:0 16px;color:#2b1d14;background:#fbf3e2}h1{color:#c4562b}table{border-collapse:collapse;width:100%}td{padding:7px 10px;border-bottom:1px solid #e7d6b2}.n{font-size:13px;opacity:.7}</style></head><body>
+<h1>Ape Race – statistiche</h1><p class="n">Conteggi dall'ultimo avvio del server: ${new Date(stats.since).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} (${up < 120 ? up + ' minuti' : Math.round(up / 60) + ' ore'} fa). Sul piano gratuito il server si riavvia dopo 15 minuti senza giocatori: per i totali più lunghi guarda i Logs di Render (righe [VISITA], [PARTITA], [GARA]).</p>
+<h2>Adesso</h2><table>${row('Dispositivi collegati alla parte online', wss.clients.size)}${row('Partite aperte', rooms.size)}</table><ul>${live || '<li>Nessuna partita aperta</li>'}</ul>
+<h2>Dall'avvio</h2><table>${row('Aperture del gioco', stats.views)}${row('Dispositivi diversi', stats.devices.size)}${row('…di cui mai visti prima', stats.newDevices)}${row('Partite online create', stats.rooms)}${row('Ingressi in partite (amici col codice)', stats.joins)}${row('Gare online partite', stats.onlineRaces)}${row('Arrivi in gare online', stats.onlineFinishes)}${row('Gare da soli finite', stats.soloRaces)}${row('Giri liberi iniziati', stats.freeRides)}${row('Massimo di collegati insieme', stats.peak)}</table>
+<h2>Dispositivi diversi per giorno</h2><table>${days.map(([d, set]) => row(d, set.size)).join('') || row('–', 0)}</table></body></html>`);
+}
+
 // ---------- file statici ----------
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/health') { res.writeHead(200, { 'content-type': 'text/plain' }); return res.end('ok'); }
+  if (url.pathname === '/api/ev' && req.method === 'POST') return readBody(req, j => {
+    const id = devId(j.id), e = String(j.e || '');
+    if (e === 'visit') {
+      stats.views++; const isNew = id && j.first === true;
+      if (id) { stats.devices.add(id); const d = today(); if (!stats.days.has(d)) stats.days.set(d, new Set()); stats.days.get(d).add(id); }
+      if (isNew) stats.newDevices++;
+      logEv('VISITA', 'dispositivo=' + (id || '?') + (isNew ? ' nuovo' : '') + ' schermo=' + String(j.s || '').slice(0, 12));
+    } else if (e === 'solo') { stats.soloRaces++; logEv('GARA', 'da solo finita: ' + String(j.r || '').slice(0, 60) + ' tempo=' + Number(j.t || 0).toFixed(1)); }
+    else if (e === 'free') { stats.freeRides++; logEv('GIRO', 'giro libero iniziato'); }
+    res.writeHead(204); res.end();
+  });
+  if (url.pathname === '/stats') {
+    if (!STATS_KEY) { res.writeHead(503, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Statistiche disattivate: imposta la variabile STATS_KEY nelle impostazioni del servizio su Render.'); }
+    if (url.searchParams.get('key') !== STATS_KEY) { res.writeHead(401, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Password mancante o sbagliata: usa /stats?key=LA_TUA_PASSWORD'); }
+    return statsPage(res);
+  }
   let p = decodeURIComponent(url.pathname);
   if (p === '/' || p === '') p = '/index.html';
   const file = path.normalize(path.join(CLIENT_DIR, p));
@@ -87,6 +127,7 @@ function maybeResults(room, force) {
 
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 16 * 1024 });
 wss.on('connection', ws => {
+  stats.peak = Math.max(stats.peak, wss.clients.size);
   const p = { id: nextId++, ws, room: null, cfg: cleanCfg({}), ready: false, lastState: 0, finish: null };
   ws.on('message', raw => {
     let m; try { m = JSON.parse(raw); } catch { return; }
@@ -98,7 +139,7 @@ wss.on('connection', ws => {
         if (room) leave(p);
         p.cfg = cleanCfg(m.cfg); p.ready = false;
         const r = { code: newCode(), host: p.id, players: new Map([[p.id, p]]), phase: 'lobby', setup: { town: 'Asciano', routeIdx: 0, diff: 1 }, resultsTimer: null };
-        rooms.set(r.code, r); p.room = r;
+        rooms.set(r.code, r); p.room = r; stats.rooms++; logEv('PARTITA', 'creata ' + r.code + ' da ' + p.cfg.name);
         send(ws, { t: 'joined', code: r.code, you: p.id });
         return roomInfo(r);
       }
@@ -107,7 +148,7 @@ wss.on('connection', ws => {
         if (!r) return send(ws, { t: 'error', msg: 'Nessuna partita con il codice ' + code + '.' });
         if (r.players.size >= MAX_PLAYERS) return send(ws, { t: 'error', msg: 'La partita è piena (massimo ' + MAX_PLAYERS + ' giocatori).' });
         if (room) leave(p);
-        p.cfg = cleanCfg(m.cfg); p.ready = false; p.room = r; r.players.set(p.id, p);
+        p.cfg = cleanCfg(m.cfg); p.ready = false; p.room = r; r.players.set(p.id, p); stats.joins++; logEv('PARTITA', p.cfg.name + ' entra in ' + r.code + ' (' + r.players.size + ' giocatori)');
         send(ws, { t: 'joined', code: r.code, you: p.id });
         broadcast(r, { t: 'hello', id: p.id, name: p.cfg.name }, p);
         return roomInfo(r);
@@ -121,7 +162,7 @@ wss.on('connection', ws => {
       case 'start': if (room && room.host === p.id && room.phase === 'lobby') {
         room.phase = 'race';
         for (const q of room.players.values()) q.finish = null;
-        const startAt = Date.now() + 4500;
+        const startAt = Date.now() + 4500; stats.onlineRaces++; logEv('GARA', 'online ' + room.code + ' parte: ' + room.players.size + ' giocatori, ' + room.setup.town + ' percorso ' + room.setup.routeIdx);
         broadcast(room, { t: 'start', startAt, seed: Math.floor(Math.random() * 2 ** 31), setup: room.setup, players: playersOf(room) });
       } return;
       case 'state': if (room && room.phase === 'race') {
@@ -136,7 +177,7 @@ wss.on('connection', ws => {
       } return;
       case 'finish': if (room && room.phase === 'race' && !p.finish) {
         const time = Number(m.time); if (!(time > 0 && time < 3600)) return;
-        p.finish = { time: Math.round(time * 10) / 10, lost: Math.max(0, Math.min(20, parseInt(m.lost) || 0)) };
+        p.finish = { time: Math.round(time * 10) / 10, lost: Math.max(0, Math.min(20, parseInt(m.lost) || 0)) }; stats.onlineFinishes++; logEv('ARRIVO', room.code + ' ' + p.cfg.name + ' ' + p.finish.time + ' s');
         broadcast(room, { t: 'finish', id: p.id, time: p.finish.time, lost: p.finish.lost });
         maybeResults(room);
       } return;

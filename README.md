@@ -54,13 +54,21 @@ Online non ci sono avversari del computer: solo giocatori veri (fino a 8 per par
 - Se un aggiornamento arriva in ritardo, la posizione dell'altra Ape viene prevista (fino a 0,3 s) da velocità e direzione, e corretta in modo morbido quando arrivano i dati veri.
 - In gara, in alto, si vedono il ritardo di rete (ms) e i fotogrammi al secondo (fps): utili per capire se il lag è della rete o del dispositivo.
 
+## Statistiche (anonime)
+
+Il gioco conta in modo anonimo aperture, dispositivi diversi, gare e partite online: ogni dispositivo manda solo un codice casuale generato dal browser, nessun nome né dato personale.
+
+- **Pagina riservata:** `https://ape-race.onrender.com/stats?key=LA_TUA_PASSWORD`. La password si sceglie su Render: servizio → **Environment** → **Add Environment Variable**, nome `STATS_KEY`, valore a piacere, poi **Save** (il servizio si riavvia da solo). Senza questa variabile la pagina resta disattivata.
+- **Limite del piano gratuito:** il server si riavvia dopo 15 minuti senza giocatori e i numeri della pagina ripartono da zero.
+- **Totali più lunghi:** su Render, nella scheda **Logs**, ogni evento ha una riga: `[VISITA]`, `[PARTITA]`, `[GARA]`, `[ARRIVO]`, `[GIRO]`. Si possono cercare con la casella di ricerca dei Logs (il piano gratuito li conserva per pochi giorni).
+
 ## Grafica leggera
 
 Sui telefoni è attiva di default (niente ombre, risoluzione 1x): il gioco resta molto più fluido. Si cambia dal menù con la casella "Grafica leggera".
 
 ## Stato e prossimi passi
 
-Versione **2.0.0-alpha.2**. Provata il 18 nov 2026 con 2 telefoni e un PC su Render: funziona, con un po' di lag (da qui previsione del movimento e grafica leggera). Da fare:
+Versione **2.0.0-alpha.3** (statistiche anonime). La 2.0.0-alpha.2 Provata il 18 nov 2026 con 2 telefoni e un PC su Render: funziona, con un po' di lag (da qui previsione del movimento e grafica leggera). Da fare:
 - gestione migliore di chi entra a gara iniziata (oggi aspetta in lobby la gara successiva)
 - carico caduto visibile anche agli altri giocatori nello stesso punto
 - Rapolano Terme e "Campionato dei borghi"

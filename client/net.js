@@ -247,6 +247,14 @@
     p.classList.remove('hidden');
   };
 
+  // statistiche anonime: solo un codice casuale del dispositivo, nessun dato personale
+  function ev(e, extra) { try { const b = JSON.stringify(Object.assign({ e, id: NET.dev }, extra || {})); if (navigator.sendBeacon) navigator.sendBeacon('/api/ev', new Blob([b], { type: 'application/json' })); else fetch('/api/ev', { method: 'POST', body: b, keepalive: true }) } catch (e2) { } }
+  NET.ev = ev;
+  (() => { let id = null, first = false; try { id = localStorage.getItem('aperace:dev'); if (!id) { id = Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-4); localStorage.setItem('aperace:dev', id); first = true } } catch (e) { } NET.dev = id; ev('visit', { first, s: innerWidth + 'x' + innerHeight }) })();
+  // gare da soli e giri liberi (per le statistiche)
+  { const sr = window.showResults; window.showResults = function () { const r = sr.apply(this, arguments); if (!NET_ON && player && player.done) ev('solo', { r: route && route.name, t: player.time }); return r } }
+  { const fb = document.querySelector('#free'); if (fb) fb.addEventListener('click', () => ev('free')) }
+
   // link d'invito: ?room=CODICE
   const q = new URLSearchParams(location.search).get('room');
   if (q) setTimeout(() => openPanel(q.toUpperCase()), 600);
